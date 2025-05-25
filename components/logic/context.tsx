@@ -135,6 +135,7 @@ const useStreamingAvatarMessageState = () => {
   }: {
     detail: UserTalkingMessageEvent;
   }) => {
+    console.log('[CONTEXT] Received user message chunk:', detail.message);
     if (currentSenderRef.current === MessageSender.CLIENT) {
       setMessages((prev) => [
         ...prev.slice(0, -1),
@@ -183,31 +184,52 @@ const useStreamingAvatarMessageState = () => {
   };
 
   const handleEndMessage = async () => {
+    console.log('[CONTEXT] User finished speaking. Current sender:', currentSenderRef.current);
     if (currentSenderRef.current === MessageSender.CLIENT && !isProcessing) {
       setIsProcessing(true);
+      console.log('[CONTEXT] Entering processing block for Gemini.');
       try {
-        // Get the last user message
         const lastMessage = messages[messages.length - 1];
+        
+        console.log('[CONTEXT] Inside try. messages array length:', messages.length);
+        if (messages.length > 0) {
+          console.log('[CONTEXT] lastMessage object (raw):', lastMessage);
+          console.log('[CONTEXT] lastMessage.content:', lastMessage ? lastMessage.content : 'undefined');
+          console.log('[CONTEXT] lastMessage.sender:', lastMessage ? lastMessage.sender : 'undefined');
+        } else {
+          console.log('[CONTEXT] messages array is empty inside try block.');
+        }
+
         if (lastMessage && lastMessage.sender === MessageSender.CLIENT) {
-          // Get Gemini's response
+          console.log('[CONTEXT] CONDITION MET: lastMessage.sender is CLIENT. Will call Gemini.');
+          console.log('[CONTEXT] Last user message for Gemini:', lastMessage.content);
           const response = await getGeminiResponse(lastMessage.content);
-          
-          // Make the avatar speak the response
-          if (messageAvatarRef.current) {
+          console.log('[CONTEXT] Gemini raw response:', response);
+          if (messageAvatarRef.current && response) {
+            console.log('[CONTEXT] Making avatar speak Gemini response:', response);
             messageAvatarRef.current.speak({
               text: response,
               taskType: TaskType.TALK,
               taskMode: TaskMode.ASYNC,
             });
+          } else {
+            if (!messageAvatarRef.current) console.log('[CONTEXT] messageAvatarRef is null, cannot speak.');
+            if (!response) console.log('[CONTEXT] Gemini response is empty, cannot speak.');
           }
+        } else {
+          console.log('[CONTEXT] CRITICAL FAILURE: Condition (lastMessage && lastMessage.sender === MessageSender.CLIENT) was FALSE.');
+          if (!lastMessage) console.log('[CONTEXT] Reason: lastMessage is null or undefined.');
+          if (lastMessage && lastMessage.sender !== MessageSender.CLIENT) console.log('[CONTEXT] Reason: lastMessage.sender is NOT CLIENT. Actual sender:', lastMessage.sender);
         }
       } catch (error) {
-        console.error('Error processing message:', error);
+        console.error('[CONTEXT] Error processing message with Gemini:', error);
       } finally {
+        console.log('[CONTEXT] Exiting processing block. Resetting isProcessing.');
         setIsProcessing(false);
       }
     }
     currentSenderRef.current = null;
+    console.log('[CONTEXT] handleEndMessage complete. currentSenderRef reset.');
   };
 
   return {
